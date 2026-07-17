@@ -22,6 +22,12 @@ const TG = `https://api.telegram.org/bot${process.env.TELEGRAM_TOKEN}`;
 const history = new Map();
 const MAX_TURNS = 10;
 
+const MODELS = [
+  "gemini-2.0-flash-lite",
+  "gemini-2.0-flash",
+  "gemini-1.5-flash",
+];
+
 async function sendMessage(chatId, text) {
   await fetch(`${TG}/sendMessage`, {
     method: "POST",
@@ -42,32 +48,41 @@ async function askGemini(chatId, userText) {
   const past = history.get(chatId) || [];
   const contents = [...past, { role: "user", parts: [{ text: userText }] }];
 
-  const res = await fetch(
-    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": process.env.GEMINI_KEY,
-      },
-      body: JSON.stringify({
-        system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
-        contents,
-        generationConfig: { temperature: 1.0, maxOutputTokens: 250 },
-      }),
+  for (const model of MODELS) {
+    try {
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": process.env.GEMINI_KEY,
+          },
+          body: JSON.stringify({
+            system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
+            contents,
+            generationConfig: { temperature: 1.0, maxOutputTokens: 250 },
+          }),
+        }
+      );
+
+      const data = await res.json();
+      console.log(`MODEL ${model} STATUS:`, res.status);
+
+      const reply = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (reply) {
+        const updated = [...contents, { role: "model", parts: [{ text: reply }] }].slice(-MAX_TURNS * 2);
+        history.set(chatId, updated);
+        return reply;
+      }
+
+      console.log(`MODEL ${model} FAILED:`, JSON.stringify(data));
+    } catch (e) {
+      console.log(`MODEL ${model} ERROR:`, e.message);
     }
-  );
+  }
 
-  const data = await res.json();
-  console.log("GEMINI STATUS:", res.status);
-  console.log("GEMINI RESPONSE:", JSON.stringify(data));
-
-  const reply = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!reply) return "Arre network thoda slow hai 😅 dobara bhejo na?";
-
-  const updated = [...contents, { role: "model", parts: [{ text: reply }] }].slice(-MAX_TURNS * 2);
-  history.set(chatId, updated);
-  return reply;
+  return "Arre network thoda slow hai 😅 dobara bhejo na?";
 }
 
 export default async function handler(req, res) {
