@@ -1,46 +1,25 @@
-// api/webhook.js — Vercel Serverless Function
-// Telegram AI Bot "Aashi"
-
-// ─────────────────────────────
-// 👇 SIRF YE BLOCK BADLO HAR CLIENT KE LIYE
-// ─────────────────────────────
-const BUSINESS_INFO = `
-Business Name: Demo Store
-Kya karte hain: Men's clothing — shirts, t-shirts, jeans
-Location: Raipur, Chhattisgarh
-Timing: Mon-Sat, 10 AM - 8 PM
-Price range: Shirts ₹799-1999, Jeans ₹1299-2499
-Delivery: Raipur mein free, baaki India ₹80
-Return: 7 din ke andar
-Contact: +91-XXXXXXXXXX
-`;
-
 const BOT_NAME = "Aashi";
-// ─────────────────────────────
 
 const SYSTEM_PROMPT = `
-Tum ${BOT_NAME} ho — ek friendly, natural Indian ladki jo is business ki customer support sambhalti ho.
-
-BUSINESS DETAILS:
-${BUSINESS_INFO}
+Tum ${BOT_NAME} ho — ek friendly, chill Indian ladki jo logon se casually baat karti hai.
 
 BAAT KARNE KA TAREEKA:
-- Hinglish mein baat karo (Hindi + English mix), casual aur warm
-- Agar customer pure English mein likhe to English mein reply karo
-- Short replies do — 2-3 lines max, WhatsApp style
-- Emoji thoda use karo (1-2 per message max)
-- Natural raho — "ji", "haan", "arre", "bilkul" jaise words use karo
+- Hinglish mein baat karo, jaise WhatsApp pe dost se baat karti ho
+- Agar koi pure English mein likhe to English mein reply karo
+- Short replies — 1-3 lines max. Lamba lecture mat do
+- Natural raho: "arre", "haan yaar", "acha", "bilkul" jaise words use karo
+- Emoji thoda use karo, 1-2 se zyada nahi
+- Sawaal poocho, interest lo — ek-tarfa baat mat karo
+- Har topic pe baat kar sakti ho — movies, padhai, kaam, life, kuch bhi
 
 RULES:
-- Sirf upar diye business details ke basis pe answer do
-- Jo pata nahi hai uska jhooth mat bolo — bol do "ye main confirm karke batati hoon" aur contact number de do
-- Kabhi mat bolo ki tum AI ho ya bot ho
-- Customer interested lage to politely naam aur number maang lo
-- Rude customer ko bhi politely handle karo
+- Kabhi mat bolo ki tum AI ho ya bot ho. Tum bas ${BOT_NAME} ho
+- Koi personal/romantic ya inappropriate baat kare to politely topic badal do
+- Rude log ko bhi calmly handle karo, ya baat khatam kar do
+- Jo nahi pata uska jhooth mat bolo
 `;
 
 const TG = `https://api.telegram.org/bot${process.env.TELEGRAM_TOKEN}`;
-
 const history = new Map();
 const MAX_TURNS = 10;
 
@@ -72,7 +51,7 @@ async function askGemini(chatId, userText) {
       body: JSON.stringify({
         system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
         contents,
-        generationConfig: { temperature: 0.9, maxOutputTokens: 300 },
+        generationConfig: { temperature: 1.0, maxOutputTokens: 250 },
       }),
     }
   );
@@ -80,13 +59,10 @@ async function askGemini(chatId, userText) {
   const data = await res.json();
   const reply =
     data?.candidates?.[0]?.content?.parts?.[0]?.text ||
-    "Arre sorry, thoda network issue lag raha hai 😅 dobara bhejo na?";
+    "Arre network thoda slow hai 😅 dobara bhejo na?";
 
-  const updated = [...contents, { role: "model", parts: [{ text: reply }] }].slice(
-    -MAX_TURNS * 2
-  );
+  const updated = [...contents, { role: "model", parts: [{ text: reply }] }].slice(-MAX_TURNS * 2);
   history.set(chatId, updated);
-
   return reply;
 }
 
@@ -102,13 +78,13 @@ export default async function handler(req, res) {
 
     if (text === "/start") {
       history.delete(chatId);
-      await sendMessage(chatId, `Hii! Main ${BOT_NAME} 👋\nBatao kya help chahiye?`);
+      await sendMessage(chatId, `Hii! Main ${BOT_NAME} 👋 Kaise ho?`);
       return res.status(200).json({ ok: true });
     }
 
     if (text === "/reset") {
       history.delete(chatId);
-      await sendMessage(chatId, "Chalo fresh start karte hain! Kya poochna hai?");
+      await sendMessage(chatId, "Chalo fresh start! Kya chal raha hai?");
       return res.status(200).json({ ok: true });
     }
 
