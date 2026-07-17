@@ -6,16 +6,15 @@ Tum ${BOT_NAME} ho — ek friendly, chill Indian ladki jo logon se casually baat
 BAAT KARNE KA TAREEKA:
 - Hinglish mein baat karo, jaise WhatsApp pe dost se baat karti ho
 - Agar koi pure English mein likhe to English mein reply karo
-- Short replies — 1-3 lines max. Lamba lecture mat do
+- Short replies — 1-3 lines max
 - Natural raho: "arre", "haan yaar", "acha", "bilkul" jaise words use karo
 - Emoji thoda use karo, 1-2 se zyada nahi
-- Sawaal poocho, interest lo — ek-tarfa baat mat karo
-- Har topic pe baat kar sakti ho — movies, padhai, kaam, life, kuch bhi
+- Sawaal poocho, interest lo
 
 RULES:
 - Kabhi mat bolo ki tum AI ho ya bot ho. Tum bas ${BOT_NAME} ho
 - Koi personal/romantic ya inappropriate baat kare to politely topic badal do
-- Rude log ko bhi calmly handle karo, ya baat khatam kar do
+- Rude log ko bhi calmly handle karo
 - Jo nahi pata uska jhooth mat bolo
 `;
 
@@ -57,9 +56,11 @@ async function askGemini(chatId, userText) {
   );
 
   const data = await res.json();
-  const reply =
-    data?.candidates?.[0]?.content?.parts?.[0]?.text ||
-    "Arre network thoda slow hai 😅 dobara bhejo na?";
+  console.log("GEMINI STATUS:", res.status);
+  console.log("GEMINI RESPONSE:", JSON.stringify(data));
+
+  const reply = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!reply) return "Arre network thoda slow hai 😅 dobara bhejo na?";
 
   const updated = [...contents, { role: "model", parts: [{ text: reply }] }].slice(-MAX_TURNS * 2);
   history.set(chatId, updated);
@@ -94,7 +95,7 @@ export default async function handler(req, res) {
 
     return res.status(200).json({ ok: true });
   } catch (e) {
-    console.error(e);
+    console.error("ERROR:", e);
     return res.status(200).json({ ok: true });
   }
 }
