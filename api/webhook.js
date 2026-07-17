@@ -1,7 +1,7 @@
 const BOT_NAME = "Aashi";
 
 const SYSTEM_PROMPT = `
-Tum ${BOT_NAME} ho — ek friendly, chill Indian ladki jo logon se casually baat karti hai.
+Tum ${BOT_NAME} ho — ek friendly, chill Indian ladki jo logon se dost ki tarah casually baat karti hai.
 
 BAAT KARNE KA TAREEKA:
 - Hinglish mein baat karo, jaise WhatsApp pe dost se baat karti ho
@@ -12,21 +12,15 @@ BAAT KARNE KA TAREEKA:
 - Sawaal poocho, interest lo
 
 RULES:
-- Kabhi mat bolo ki tum AI ho ya bot ho. Tum bas ${BOT_NAME} ho
-- Koi personal/romantic ya inappropriate baat kare to politely topic badal do
-- Rude log ko bhi calmly handle karo
+- Tum ek AI ho — koi poochhe to saaf bata do, chhupao mat
+- Tum ek dost ho, girlfriend nahi. Romantic ya flirty baat aaye to hasi mein taal do aur topic badal do
+- Rude log ko calmly handle karo
 - Jo nahi pata uska jhooth mat bolo
 `;
 
 const TG = `https://api.telegram.org/bot${process.env.TELEGRAM_TOKEN}`;
 const history = new Map();
 const MAX_TURNS = 10;
-
-const MODELS = [
-  "gemini-2.0-flash-lite",
-  "gemini-2.0-flash",
-  "gemini-1.5-flash",
-];
 
 async function sendMessage(chatId, text) {
   await fetch(`${TG}/sendMessage`, {
@@ -44,45 +38,43 @@ async function sendTyping(chatId) {
   });
 }
 
-async function askGemini(chatId, userText) {
+async function askAI(chatId, userText) {
   const past = history.get(chatId) || [];
-  const contents = [...past, { role: "user", parts: [{ text: userText }] }];
+  const messages = [
+    { role: "system", content: SYSTEM_PROMPT },
+    ...past,
+    { role: "user", content: userText },
+  ];
 
-  for (const model of MODELS) {
-    try {
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-goog-api-key": process.env.GEMINI_KEY,
-          },
-          body: JSON.stringify({
-            system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
-            contents,
-            generationConfig: { temperature: 1.0, maxOutputTokens: 250 },
-          }),
-        }
-      );
+  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${process.env.GROQ_KEY}`,
+    },
+    body: JSON.stringify({
+      model: "llama-3.3-70b-versatile",
+      messages,
+      temperature: 1.0,
+      max_tokens: 250,
+    }),
+  });
 
-      const data = await res.json();
-      console.log(`MODEL ${model} STATUS:`, res.status);
+  const data = await res.json();
+  console.log("GROQ STATUS:", res.status);
+  console.log("GROQ RESPONSE:", JSON.stringify(data));
 
-      const reply = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (reply) {
-        const updated = [...contents, { role: "model", parts: [{ text: reply }] }].slice(-MAX_TURNS * 2);
-        history.set(chatId, updated);
-        return reply;
-      }
+  const reply = data?.choices?.[0]?.message?.content;
+  if (!reply) return "Arre network thoda slow hai 😅 dobara bhejo na?";
 
-      console.log(`MODEL ${model} FAILED:`, JSON.stringify(data));
-    } catch (e) {
-      console.log(`MODEL ${model} ERROR:`, e.message);
-    }
-  }
+  const updated = [
+    ...past,
+    { role: "user", content: userText },
+    { role: "assistant", content: reply },
+  ].slice(-MAX_TURNS * 2);
+  history.set(chatId, updated);
 
-  return "Arre network thoda slow hai 😅 dobara bhejo na?";
+  return reply;
 }
 
 export default async function handler(req, res) {
@@ -108,7 +100,7 @@ export default async function handler(req, res) {
     }
 
     await sendTyping(chatId);
-    const reply = await askGemini(chatId, text);
+    const reply = await askAI(chatId, text);
     await sendMessage(chatId, reply);
 
     return res.status(200).json({ ok: true });
